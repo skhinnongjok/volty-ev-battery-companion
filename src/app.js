@@ -47,11 +47,11 @@ function renderActiveTrip() {
   $("endTripButton").hidden = !isActive;
   $("tripStatus").textContent = isActive ? "RECORDING" : "READY";
   $("tripHeading").textContent = isActive ? "กำลังบันทึกทริป" : "พร้อมออกเดินทาง";
-  $("tripMessage").textContent = isActive ? "GPS และข้อมูล BMS จะถูกเก็บไว้ในเครื่องนี้" : "เชื่อมต่อ Bluetooth แล้วระบบจะเริ่มบันทึกอัตโนมัติ";
+  $("tripMessage").textContent = isActive ? "GPS และข้อมูล BMS จะถูกเก็บไว้ในเครื่องนี้" : "เชื่อมต่อ Bluetooth แล้วกด Start Trip เมื่อพร้อม";
   if (!isActive) {
     $("startTripButton").disabled = !connected;
-    $("tripStartTitle").textContent = connected ? "Start New Trip" : "รอ Bluetooth";
-    $("tripStartHint").textContent = connected ? "เริ่มทริปใหม่โดยใช้ BMS ที่เชื่อมอยู่" : "เชื่อมต่อ BMS เพื่อเริ่มอัตโนมัติ";
+    $("tripStartTitle").textContent = connected ? "Start Trip" : "รอ Bluetooth";
+    $("tripStartHint").textContent = connected ? "กดเมื่อพร้อมเริ่มบันทึกการเดินทาง" : "เชื่อมต่อ BMS เพื่อเปิดปุ่ม Start Trip";
   }
   if (!isActive) return;
   const elapsed = (Date.now() - Date.parse(activeTrip.startedAt)) / 1000;
@@ -158,12 +158,12 @@ async function renderTripHistory() {
   }
 }
 
-async function startTrip({ automatic = false } = {}) {
+async function startTrip() {
   if (activeTrip || tripStartPending) return;
   if (!connected) { showToast("กรุณาเชื่อมต่อ Bluetooth ก่อนเริ่มทริป", true); return; }
   tripStartPending = true;
   const startedAt = new Date();
-  activeTrip = { id: createTripId(), status: "active", startedAutomatically: automatic, startedAt: startedAt.toISOString(), endedAt: null, distanceMeters: 0, positions: [], samples: [] };
+  activeTrip = { id: createTripId(), status: "active", startedAutomatically: false, startedAt: startedAt.toISOString(), endedAt: null, distanceMeters: 0, positions: [], samples: [] };
   if (latestData) activeTrip.samples.push(createBmsSample(latestData, startedAt));
   try {
     await tripStore.put(activeTrip);
@@ -171,7 +171,7 @@ async function startTrip({ automatic = false } = {}) {
     startLocationWatch();
     startTripClock();
     renderActiveTrip();
-    showToast(automatic ? "เชื่อมต่อ Bluetooth แล้ว — เริ่มบันทึกทริปอัตโนมัติ" : "เริ่มบันทึกทริปแล้ว");
+    showToast("เริ่มบันทึกทริปแล้ว");
   } catch (error) {
     activeTrip = null;
     renderActiveTrip();
@@ -528,7 +528,6 @@ client.addEventListener("connection", ({ detail }) => {
   addLog(connected ? `CONNECTED ${detail.name}` : `DISCONNECTED ${detail.name}`);
   if (!connected && !intentionalDisconnect) showToast("Bluetooth ถูกตัดการเชื่อมต่อ", true);
   else if (connected) showToast(`เชื่อมต่อ ${detail.name} แล้ว`);
-  if (connected && !activeTrip) startTrip({ automatic: true });
   intentionalDisconnect = false;
 });
 

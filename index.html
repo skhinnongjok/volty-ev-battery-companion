@@ -94,7 +94,7 @@
 
       <section class="trip-card surface" id="trips">
         <div class="trip-card-head">
-          <div><span class="eyebrow">TRIP TRACKING</span><h2 id="tripHeading">พร้อมออกเดินทาง</h2><p id="tripMessage">เชื่อมต่อ Bluetooth แล้วระบบจะเริ่มบันทึกอัตโนมัติ</p></div>
+          <div><span class="eyebrow">TRIP TRACKING</span><h2 id="tripHeading">พร้อมออกเดินทาง</h2><p id="tripMessage">เชื่อมต่อ Bluetooth แล้วกด Start Trip เมื่อพร้อม</p></div>
           <span class="trip-status" id="tripStatus">READY</span>
         </div>
         <div class="trip-live" id="tripLive" hidden>
@@ -103,7 +103,7 @@
           <div><span>พลังงาน</span><strong id="tripEnergy">0 <small>Wh</small></strong></div>
           <div><span>SOC</span><strong id="tripSoc">— <small>%</small></strong></div>
         </div>
-        <button class="trip-button trip-start" id="startTripButton" disabled><span class="trip-button-icon">▶</span><span><b id="tripStartTitle">รอ Bluetooth</b><small id="tripStartHint">เชื่อมต่อ BMS เพื่อเริ่มอัตโนมัติ</small></span></button>
+        <button class="trip-button trip-start" id="startTripButton" disabled><span class="trip-button-icon">▶</span><span><b id="tripStartTitle">รอ Bluetooth</b><small id="tripStartHint">เชื่อมต่อ BMS เพื่อเปิดปุ่ม Start Trip</small></span></button>
         <button class="trip-button trip-end" id="endTripButton" hidden><span class="trip-button-icon">■</span><span>End Trip<small>จบทริปและดูสรุป</small></span></button>
       </section>
 
@@ -182,6 +182,6 @@
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="src/app.js?v=17"></script>
+    <script type="module" src="src/app.js?v=18"></script>
   </body>
 </html>
