@@ -38,12 +38,16 @@ npm run dev
 - Protection/warning แบบแยกรายการตาม bit map จาก official Windows app (พร้อมกัน normal state flags ออกจาก warning)
 - Raw TX/RX log และ export เป็น JSON เพื่อช่วยตรวจ protocol กับเครื่องจริง
 - Hardware/software version response (หาก firmware ตอบกลับ)
+- Trip Tracking พร้อม GPS distance, elapsed time และ BMS snapshots ระหว่างทาง
+- เริ่ม Trip Tracking อัตโนมัติเมื่อเชื่อมต่อ Bluetooth สำเร็จ และไม่จบทริปเมื่อสัญญาณหลุดชั่วคราว
+- Trip Summary แสดง SOC/Ah/พลังงาน/Wh ต่อ km/อุณหภูมิ/cell delta และเก็บประวัติใน IndexedDB บนเครื่อง
 
 ## โครงสร้าง
 
 - `src/protocol.js` — CRC, frame validation, fragmented-notification assembler และ decoder
 - `src/ble.js` — Web Bluetooth transport สำหรับ FFE0/FFE1 และ polling
 - `src/app.js` — UI state สำหรับข้อมูลจริง, ตัวเลือกอุปกรณ์ และ log export
+- `src/trips.js` — GPS distance, Trip Summary และ local IndexedDB storage
 - `tests/protocol.test.js` — test vector ของ CRC, 20S decoder, fragmentation และ corruption
 - `PROTOCOL_REPORT.md` — หลักฐาน การประเมิน protocol และรายการทดสอบกับ BMS จริง
 

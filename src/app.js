@@ -1,9 +1,11 @@
 import { AntBleClient } from "./ble.js";
 import { estimateChargeMinutes } from "./metrics.js";
 import { bytesToHex, parseDeviceInfoFrame, parseStatusFrame } from "./protocol.js";
+import { TripStore, addPosition, createBmsSample, summarizeTrip } from "./trips.js";
 
 const $ = (id) => document.getElementById(id);
 const client = new AntBleClient();
+const tripStore = new TripStore();
 const logs = [];
 let latestData = null;
 let connected = false;
@@ -11,11 +13,183 @@ let intentionalDisconnect = false;
 let chargeCurrentSamples = [];
 let currentVehicleSlide = 0;
 let vehicleTouchStartX = null;
+let activeTrip = null;
+let locationWatchId = null;
+let tripClockId = null;
+let lastTripPersistedAt = 0;
+let tripStartPending = false;
 
 const statusNames = ["ไม่ทราบสถานะ", "พัก", "กำลังชาร์จ", "กำลังคายประจุ", "สแตนด์บาย", "ผิดปกติ"];
 const bluetoothIcon = '<svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg>';
 
 function format(value, digits = 1) { return Number.isFinite(value) ? value.toFixed(digits) : "—"; }
+
+function formatTripDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return [hours, minutes, seconds % 60].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function createTripId() {
+  return crypto.randomUUID?.() || `trip-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function tripEnergySoFar(trip) {
+  return summarizeTrip(trip, new Date()).consumedWh;
+}
+
+function renderActiveTrip() {
+  const isActive = Boolean(activeTrip);
+  $("trips").classList.toggle("is-active", isActive);
+  $("tripLive").hidden = !isActive;
+  $("startTripButton").hidden = isActive;
+  $("endTripButton").hidden = !isActive;
+  $("tripStatus").textContent = isActive ? "RECORDING" : "READY";
+  $("tripHeading").textContent = isActive ? "กำลังบันทึกทริป" : "พร้อมออกเดินทาง";
+  $("tripMessage").textContent = isActive ? "GPS และข้อมูล BMS จะถูกเก็บไว้ในเครื่องนี้" : "เชื่อมต่อ Bluetooth แล้วระบบจะเริ่มบันทึกอัตโนมัติ";
+  if (!isActive) return;
+  const elapsed = (Date.now() - Date.parse(activeTrip.startedAt)) / 1000;
+  $("tripDistance").innerHTML = `${format(activeTrip.distanceMeters / 1000, 2)} <small>km</small>`;
+  $("tripElapsed").textContent = formatTripDuration(elapsed);
+  $("tripEnergy").innerHTML = `${format(tripEnergySoFar(activeTrip), 0)} <small>Wh</small>`;
+  const soc = activeTrip.samples.at(-1)?.soc;
+  $("tripSoc").innerHTML = `${Number.isFinite(soc) ? Math.round(soc) : "—"} <small>%</small>`;
+}
+
+function scheduleTripSave(force = false) {
+  if (!activeTrip) return;
+  const now = Date.now();
+  if (!force && now - lastTripPersistedAt < 5000) return;
+  lastTripPersistedAt = now;
+  tripStore.put(activeTrip).catch((error) => addLog(`TRIP SAVE ERROR ${error.message}`, "error"));
+}
+
+function startLocationWatch() {
+  if (locationWatchId !== null || !navigator.geolocation) return;
+  locationWatchId = navigator.geolocation.watchPosition((position) => {
+    if (!activeTrip) return;
+    if (addPosition(activeTrip, position)) {
+      renderActiveTrip();
+      scheduleTripSave();
+    }
+  }, (error) => {
+    addLog(`GPS ${error.message}`, "error");
+    showToast("GPS ไม่พร้อม — ทริปยังบันทึกข้อมูล BMS ต่อได้", true);
+  }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 });
+}
+
+function stopLocationWatch() {
+  if (locationWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatchId);
+  locationWatchId = null;
+}
+
+function startTripClock() {
+  window.clearInterval(tripClockId);
+  tripClockId = window.setInterval(renderActiveTrip, 1000);
+}
+
+function stopTripClock() {
+  window.clearInterval(tripClockId);
+  tripClockId = null;
+}
+
+function displayTripSummary(trip) {
+  const summary = trip.summary || summarizeTrip(trip, new Date(trip.endedAt || Date.now()));
+  const startedAt = new Date(trip.startedAt);
+  const endedAt = new Date(trip.endedAt || Date.now());
+  $("summaryDate").textContent = startedAt.toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+  const timeOptions = { hour: "2-digit", minute: "2-digit", second: "2-digit" };
+  $("summaryTimeRange").textContent = `${startedAt.toLocaleTimeString("th-TH", timeOptions)} – ${endedAt.toLocaleTimeString("th-TH", timeOptions)} น.`;
+  $("summaryDistance").textContent = format(summary.distanceKm, 2);
+  $("summaryDuration").textContent = formatTripDuration(summary.durationSeconds);
+  const items = [
+    ["SOC เริ่มต้น", summary.socStart, "%", 0], ["SOC สิ้นสุด", summary.socEnd, "%", 0],
+    ["แบตเตอรี่ที่ใช้", summary.socUsed, "%", 0], ["Ah ที่ใช้", summary.ahUsed, "Ah", 2],
+    ["พลังงานโดยประมาณ", summary.consumedWh, "Wh", 0], ["พลังงาน", summary.consumedKwh, "kWh", 3],
+    ["เฉลี่ย", summary.averageWhPerKm, "Wh/km", 1], ["อุณหภูมิสูงสุด", summary.maxTemperature, "°C", 0],
+    ["Cell delta สูงสุด", summary.maxCellDeltaMv, "mV", 0]
+  ];
+  $("summaryGrid").replaceChildren(...items.map(([label, value, unit, digits]) => {
+    const item = document.createElement("div"); item.className = "summary-item";
+    item.innerHTML = `<span>${label}</span><strong>${format(value, digits)} <small>${unit}</small></strong>`;
+    return item;
+  }));
+  $("tripSummary").hidden = false;
+  $("tripSummary").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function renderTripHistory() {
+  try {
+    const trips = await tripStore.getCompleted();
+    if (!trips.length) {
+      $("tripHistoryList").innerHTML = '<div class="history-empty">ยังไม่มีทริปที่บันทึกไว้</div>';
+      return;
+    }
+    $("tripHistoryList").replaceChildren(...trips.map((trip) => {
+      const summary = trip.summary || summarizeTrip(trip, new Date(trip.endedAt));
+      const button = document.createElement("button"); button.className = "history-card";
+      const date = new Date(trip.startedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+      const time = new Date(trip.startedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+      button.innerHTML = `<span class="history-card-title"><strong>${date} · ${time}</strong><span>${formatTripDuration(summary.durationSeconds)} · ใช้แบต ${format(summary.socUsed, 0)}%</span></span><span class="history-card-metrics"><strong>${format(summary.distanceKm, 2)} km</strong><span>${format(summary.averageWhPerKm, 1)} Wh/km</span></span>`;
+      button.addEventListener("click", () => displayTripSummary(trip));
+      return button;
+    }));
+  } catch (error) {
+    $("tripHistoryList").innerHTML = '<div class="history-empty">ไม่สามารถเปิดฐานข้อมูลทริปได้</div>';
+    addLog(`TRIP DB ERROR ${error.message}`, "error");
+  }
+}
+
+async function startTrip({ automatic = false } = {}) {
+  if (activeTrip || tripStartPending) return;
+  tripStartPending = true;
+  const startedAt = new Date();
+  activeTrip = { id: createTripId(), status: "active", startedAutomatically: automatic, startedAt: startedAt.toISOString(), endedAt: null, distanceMeters: 0, positions: [], samples: [] };
+  if (latestData) activeTrip.samples.push(createBmsSample(latestData, startedAt));
+  try {
+    await tripStore.put(activeTrip);
+    lastTripPersistedAt = Date.now();
+    startLocationWatch();
+    startTripClock();
+    renderActiveTrip();
+    showToast(automatic ? "เชื่อมต่อ Bluetooth แล้ว — เริ่มบันทึกทริปอัตโนมัติ" : "เริ่มบันทึกทริปแล้ว");
+  } catch (error) {
+    activeTrip = null;
+    renderActiveTrip();
+    showToast(`เริ่มทริปไม่ได้: ${error.message}`, true);
+  } finally { tripStartPending = false; }
+}
+
+async function endTrip() {
+  if (!activeTrip) return;
+  $("endTripButton").disabled = true;
+  const endedAt = new Date();
+  if (latestData) activeTrip.samples.push(createBmsSample(latestData, endedAt));
+  activeTrip.endedAt = endedAt.toISOString();
+  activeTrip.status = "completed";
+  activeTrip.summary = summarizeTrip(activeTrip, endedAt);
+  try {
+    await tripStore.put(activeTrip);
+    const completedTrip = activeTrip;
+    activeTrip = null;
+    stopLocationWatch(); stopTripClock(); renderActiveTrip();
+    displayTripSummary(completedTrip);
+    await renderTripHistory();
+    showToast("บันทึก Trip Summary แล้ว");
+  } catch (error) {
+    showToast(`จบทริปไม่ได้: ${error.message}`, true);
+  } finally { $("endTripButton").disabled = false; }
+}
+
+async function restoreTripState() {
+  await renderTripHistory();
+  try {
+    activeTrip = await tripStore.getActive();
+    if (activeTrip) { startLocationWatch(); startTripClock(); }
+    renderActiveTrip();
+  } catch (error) { addLog(`TRIP RESTORE ERROR ${error.message}`, "error"); }
+}
 
 function setPill(id, value, active = null) {
   const element = $(id); element.textContent = value;
@@ -137,6 +311,15 @@ function render(data) {
   setPill("lastUpdated", data.receivedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
   $("dataAge").textContent = "LIVE"; $("dataAge").classList.add("live");
   renderCells(data);
+  if (activeTrip) {
+    const sample = createBmsSample(data, data.receivedAt instanceof Date ? data.receivedAt : new Date());
+    const previous = activeTrip.samples.at(-1);
+    if (!previous || Date.parse(sample.recordedAt) > Date.parse(previous.recordedAt)) {
+      activeTrip.samples.push(sample);
+      renderActiveTrip();
+      scheduleTripSave();
+    }
+  }
 }
 
 function renderCells(data) {
@@ -273,6 +456,10 @@ $("navMore").addEventListener("click", () => {
   $("debugToggle").setAttribute("aria-expanded", "true"); $("debugContent").hidden = false;
   $("debugToggle").scrollIntoView({ behavior: "smooth", block: "center" });
 });
+$("startTripButton").addEventListener("click", () => startTrip());
+$("endTripButton").addEventListener("click", endTrip);
+$("closeTripSummary").addEventListener("click", () => { $("tripSummary").hidden = true; });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") scheduleTripSave(true); });
 $("exportButton").addEventListener("click", () => {
   const data = JSON.stringify({ exportedAt: new Date().toISOString(), device: client.device?.name, latestData, logs }, null, 2);
   const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([data], { type: "application/json" })), download: `ant-bms-log-${Date.now()}.json` });
@@ -292,6 +479,7 @@ client.addEventListener("connection", ({ detail }) => {
   addLog(connected ? `CONNECTED ${detail.name}` : `DISCONNECTED ${detail.name}`);
   if (!connected && !intentionalDisconnect) showToast("Bluetooth ถูกตัดการเชื่อมต่อ", true);
   else if (connected) showToast(`เชื่อมต่อ ${detail.name} แล้ว`);
+  if (connected && !activeTrip) startTrip({ automatic: true });
   intentionalDisconnect = false;
 });
 
@@ -314,4 +502,5 @@ if (!client.supported) {
   $("connectButton").disabled = true; $("navConnect").disabled = true; $("discoverButton").disabled = true;
 }
 $("pollButton").disabled = true;
+restoreTripState();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("service-worker.js").catch(() => {});

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=15" />
     <title>VOLTY — Your EV battery companion</title>
   </head>
   <body>
@@ -92,6 +92,28 @@
         <span class="eta-bolt">ϟ</span>
       </section>
 
+      <section class="trip-card surface" id="trips">
+        <div class="trip-card-head">
+          <div><span class="eyebrow">TRIP TRACKING</span><h2 id="tripHeading">พร้อมออกเดินทาง</h2><p id="tripMessage">เชื่อมต่อ Bluetooth แล้วระบบจะเริ่มบันทึกอัตโนมัติ</p></div>
+          <span class="trip-status" id="tripStatus">READY</span>
+        </div>
+        <div class="trip-live" id="tripLive" hidden>
+          <div><span>ระยะทาง</span><strong id="tripDistance">0.00 <small>km</small></strong></div>
+          <div><span>เวลาที่ใช้</span><strong id="tripElapsed">00:00:00</strong></div>
+          <div><span>พลังงาน</span><strong id="tripEnergy">0 <small>Wh</small></strong></div>
+          <div><span>SOC</span><strong id="tripSoc">— <small>%</small></strong></div>
+        </div>
+        <button class="trip-button trip-start" id="startTripButton"><span class="trip-button-icon">▶</span><span>Start Trip<small>เริ่มเองโดยไม่รอ Bluetooth</small></span></button>
+        <button class="trip-button trip-end" id="endTripButton" hidden><span class="trip-button-icon">■</span><span>End Trip<small>จบทริปและดูสรุป</small></span></button>
+      </section>
+
+      <section class="trip-summary surface" id="tripSummary" hidden>
+        <div class="section-heading"><div><span class="eyebrow">TRIP COMPLETE</span><h2>สรุปการเดินทาง</h2></div><button class="summary-close" id="closeTripSummary" aria-label="ปิดสรุป">×</button></div>
+        <div class="summary-datetime"><span id="summaryDate">—</span><strong id="summaryTimeRange">—</strong></div>
+        <div class="summary-hero"><div><span>ระยะทาง</span><strong id="summaryDistance">—</strong><small>km</small></div><div><span>ระยะเวลา</span><strong id="summaryDuration">—</strong></div></div>
+        <div class="summary-grid" id="summaryGrid"></div>
+      </section>
+
       <section class="quick-section">
         <div class="section-heading"><div><span class="eyebrow">REAL-TIME DATA</span><h2>ข้อมูลรถของคุณ</h2></div><a href="#system">เพิ่มเติม <span>›</span></a></div>
         <div class="metrics" aria-label="ค่าหลักของแบตเตอรี่">
@@ -114,6 +136,11 @@
           <div class="health-card"><div class="health-score"><strong id="sohValue">—</strong><span>SOH</span></div><div><strong id="healthTitle">รอการเชื่อมต่อ</strong><p id="healthText">สถานะ protection และ warning จะแสดงที่นี่</p></div></div>
           <div class="system-list"><div><span>Charge MOS</span><b id="chargeMos" class="neutral">—</b></div><div><span>Discharge MOS</span><b id="dischargeMos" class="neutral">—</b></div><div><span>Balancer</span><b id="balancerStatus" class="neutral">—</b></div><div><span>อัปเดตล่าสุด</span><b id="lastUpdated" class="neutral">—</b></div></div>
         </aside>
+      </section>
+
+      <section class="trip-history surface" id="tripHistory">
+        <div class="section-heading"><div><span class="eyebrow">LOCAL HISTORY</span><h2>ประวัติทริป</h2></div><span class="local-badge">บนเครื่องนี้</span></div>
+        <div class="trip-history-list" id="tripHistoryList"><div class="history-empty">ยังไม่มีทริปที่บันทึกไว้</div></div>
       </section>
 
       <section class="debug-panel surface">
@@ -153,6 +180,6 @@
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="src/app.js"></script>
+    <script type="module" src="src/app.js?v=15"></script>
   </body>
 </html>

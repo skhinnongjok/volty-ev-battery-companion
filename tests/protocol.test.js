@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { AntFrameAssembler, STATUS_REQUEST, crc16Modbus, decodeBitMask, parseStatusFrame, validateFrame } from "../src/protocol.js";
 import { estimateChargeMinutes } from "../src/metrics.js";
+import { addPosition, haversineMeters, summarizeTrip } from "../src/trips.js";
 
 function writeU16(bytes, offset, value) { new DataView(bytes.buffer).setUint16(offset, value, true); }
 function writeI16(bytes, offset, value) { new DataView(bytes.buffer).setInt16(offset, value, true); }
@@ -40,6 +41,35 @@ test("estimates charge time from BMS capacity and current", () => {
 
 test("infers total capacity from SOC when BMS total is unavailable", () => {
   assert.equal(estimateChargeMinutes({ remainingCapacity: 20.4, soc: 85 }, 8), 27);
+});
+
+test("calculates GPS distance and filters implausible points", () => {
+  const trip = { distanceMeters: 0, positions: [] };
+  const point = (latitude, longitude, timestamp, accuracy = 5) => ({ coords: { latitude, longitude, accuracy, altitude: null, speed: null }, timestamp });
+  assert.equal(addPosition(trip, point(13.7563, 100.5018, 0)), true);
+  assert.equal(addPosition(trip, point(13.7572, 100.5018, 60_000)), true);
+  assert.ok(trip.distanceMeters > 95 && trip.distanceMeters < 105);
+  assert.equal(addPosition(trip, point(14.5, 101.5, 61_000)), false);
+  assert.ok(haversineMeters({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 1 }) > 111_000);
+});
+
+test("builds trip summary from BMS samples", () => {
+  const trip = {
+    startedAt: "2026-10-01T00:00:00.000Z", distanceMeters: 10_000,
+    samples: [
+      { recordedAt: "2026-10-01T00:00:00.000Z", soc: 90, packVoltage: 80, current: 10, remainingAh: 27, temperature: 31, cellDeltaMv: 18 },
+      { recordedAt: "2026-10-01T01:00:00.000Z", soc: 70, packVoltage: 76, current: 10, remainingAh: 17, temperature: 43, cellDeltaMv: 31 }
+    ]
+  };
+  const summary = summarizeTrip(trip, new Date("2026-10-01T01:00:00.000Z"));
+  assert.equal(summary.durationSeconds, 3600);
+  assert.equal(summary.distanceKm, 10);
+  assert.equal(summary.socUsed, 20);
+  assert.equal(summary.ahUsed, 10);
+  assert.equal(summary.consumedWh, 780);
+  assert.equal(summary.averageWhPerKm, 78);
+  assert.equal(summary.maxTemperature, 43);
+  assert.equal(summary.maxCellDeltaMv, 31);
 });
 
 test("parses a 20S dynamic status payload", () => {
