@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f7f9" />
+    <meta name="description" content="Dashboard อ่านสถานะ ANT BMS ผ่าน Bluetooth BLE" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>VOLTY — Your EV battery companion</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <a class="brand" href="#overview" aria-label="VOLTY home">
+          <strong>VOLTY</strong>
+          <small>Your EV battery companion</small>
+        </a>
+      </header>
+
+      <section class="vehicle-hero" id="overview">
+        <div class="signal-line">
+          <span>◉ BMS <i>••••</i></span>
+          <span>⌁ LIVE DATA <i>••••</i></span>
+        </div>
+        <button class="connection-chip" id="connectButton">
+          <svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg>
+          <span id="connectionLabel">เลือกอุปกรณ์</span>
+        </button>
+
+        <div class="vehicle-stage" id="vehicleCarousel">
+          <span class="stage-orbit orbit-one"></span>
+          <span class="stage-orbit orbit-two"></span>
+          <span class="vehicle-shadow"></span>
+          <div class="vehicle-track" id="vehicleTrack">
+            <div class="vehicle-slide"><img class="motorcycle-art" src="https://static.vecteezy.com/system/resources/previews/035/174/213/non_2x/electric-motorcycle-technology-object-illustration-free-png.png" alt="รถมอเตอร์ไซค์ไฟฟ้าแบบสกูตเตอร์" /></div>
+            <div class="vehicle-slide"><img class="motorcycle-art motorcycle-art-portrait" src="https://cdn.sanity.io/images/tixu23xv/production/3c906adc444a7e672ecb3e0718a4bb25e931a6de-2218x2682.png?fit=max" alt="รถมอเตอร์ไซค์ไฟฟ้าอีกหนึ่งแบบ" /></div>
+          </div>
+          <button class="vehicle-arrow vehicle-prev" id="vehiclePrev" aria-label="ดูรถคันก่อนหน้า">‹</button>
+          <button class="vehicle-arrow vehicle-next" id="vehicleNext" aria-label="ดูรถคันถัดไป">›</button>
+          <div class="vehicle-dots" aria-label="เลือกรูปรถ">
+            <button class="active" data-vehicle-slide="0" aria-label="รูปรถที่ 1"></button>
+            <button data-vehicle-slide="1" aria-label="รูปรถที่ 2"></button>
+          </div>
+        </div>
+
+        <div class="device-copy">
+          <h1 id="deviceName">VOLTY Electric Motorcycle</h1>
+          <p id="versionText">เชื่อมต่อ BMS เพื่ออ่านข้อมูลรถแบบเรียลไทม์</p>
+        </div>
+        <div class="vehicle-state" id="rideState">
+          <span class="pulse-dot"></span>
+          <strong id="batteryStatus">พร้อมสำหรับการเชื่อมต่อ</strong>
+          <b class="live-badge" id="dataAge">OFFLINE</b>
+        </div>
+      </section>
+
+      <section class="primary-dashboard">
+        <article class="battery-card">
+          <div class="card-label"><span>BATTERY</span><small>20S PACK</small></div>
+          <div class="battery-content">
+            <div class="soc-gauge" id="socRing" style="--soc:0">
+              <div class="soc-gauge-inner">
+                <svg class="charge-bolt" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 2 5.8 13.1h5.3L9.9 22l8.3-12.2h-5.5L13.2 2Z"/></svg>
+                <strong id="socValue">—</strong><span>%</span><small id="socLabel">รอข้อมูล</small>
+              </div>
+            </div>
+            <div class="capacity-value"><span>คงเหลือ</span><strong id="remainingCapacity">— <small>Ah</small></strong><p>ความจุแบตเตอรี่</p></div>
+          </div>
+        </article>
+
+        <div class="action-stack">
+          <a class="action-card action-green" href="#system">
+            <span class="action-icon"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-5"/></svg></span>
+            <div><small>สถานะแบตเตอรี่</small><strong id="batteryHealthValue">รอข้อมูล</strong></div>
+            <span class="action-arrow">›</span>
+          </a>
+          <a class="action-card action-orange" href="#system">
+            <span class="action-icon"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="15" height="12" rx="2"/><path d="M19 10h2v4h-2M8 12h7M11.5 8.5v7"/></svg></span>
+            <div><small>สุขภาพแบตเตอรี่</small><strong id="batterySohValue">—% SOH</strong></div>
+            <span class="action-arrow">›</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="charge-eta" id="chargeEta" hidden>
+        <span class="eta-icon"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9Z"/></svg></span>
+        <div><span>คาดว่าจะชาร์จเต็ม</span><strong id="chargeEtaValue">กำลังคำนวณ…</strong><small id="chargeEtaClock"></small></div>
+        <span class="eta-bolt">ϟ</span>
+      </section>
+
+      <section class="quick-section">
+        <div class="section-heading"><div><span class="eyebrow">REAL-TIME DATA</span><h2>ข้อมูลรถของคุณ</h2></div><a href="#system">เพิ่มเติม <span>›</span></a></div>
+        <div class="metrics" aria-label="ค่าหลักของแบตเตอรี่">
+          <article class="metric-card metric-voltage"><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 14h6L10 22l9.5-13h-6L13 2Z"/></svg></div><div class="metric-body"><span>Pack voltage</span><div><strong id="voltageValue">—</strong><small>V</small></div><p>แรงดันรวม</p></div></article>
+          <article class="metric-card metric-current"><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M12 3v18M5.5 8.5 12 3l6.5 5.5M5.5 15.5 12 21l6.5-5.5"/></svg></div><div class="metric-body"><span>Current</span><div><strong id="currentValue">—</strong><small>A</small></div><p id="currentDirection">รอข้อมูล</p></div></article>
+          <article class="metric-card metric-temp"><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M14 14.8V5a4 4 0 0 0-8 0v9.8a6 6 0 1 0 8 0Z"/><path d="M10 8v9"/></svg></div><div class="metric-body"><span>Temperature</span><div><strong id="temperatureValue">—</strong><small>°C</small></div><p id="temperatureLabel">รอข้อมูล</p></div></article>
+          <article class="metric-card metric-delta"><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M4 17 10 7l3 6 2-4 5 8H4Z"/></svg></div><div class="metric-body"><span>Cell delta</span><div><strong id="deltaValue">—</strong><small>mV</small></div><p id="deltaLabel">รอข้อมูล</p></div></article>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <article class="surface cells-card" id="cells">
+          <div class="section-heading"><div><span class="eyebrow">CELL HEALTH</span><h2>แรงดันรายเซลล์</h2></div><div class="legend"><span><i class="low"></i>ต่ำสุด</span><span><i class="high"></i>สูงสุด</span></div></div>
+          <div class="cell-summary"><div><span>ต่ำสุด</span><strong id="cellMinScale">— V</strong></div><div><span>ค่าเฉลี่ย</span><strong id="cellAverage">— V</strong></div><div><span>สูงสุด</span><strong id="cellMaxScale">— V</strong></div></div>
+          <div class="cells-grid" id="cellsGrid"><div class="cells-empty"><span class="empty-icon">20S</span><strong>ยังไม่มีข้อมูลเซลล์</strong><p>เลือก ANT BMS เพื่อดูแรงดันทั้ง 20 เซลล์</p></div></div>
+        </article>
+
+        <aside class="surface system-card" id="system">
+          <div class="section-heading"><div><span class="eyebrow">VEHICLE SERVICES</span><h2>สถานะระบบ</h2></div></div>
+          <div class="health-card"><div class="health-score"><strong id="sohValue">—</strong><span>SOH</span></div><div><strong id="healthTitle">รอการเชื่อมต่อ</strong><p id="healthText">สถานะ protection และ warning จะแสดงที่นี่</p></div></div>
+          <div class="system-list"><div><span>Charge MOS</span><b id="chargeMos" class="neutral">—</b></div><div><span>Discharge MOS</span><b id="dischargeMos" class="neutral">—</b></div><div><span>Balancer</span><b id="balancerStatus" class="neutral">—</b></div><div><span>อัปเดตล่าสุด</span><b id="lastUpdated" class="neutral">—</b></div></div>
+        </aside>
+      </section>
+
+      <section class="debug-panel surface">
+        <button class="debug-toggle" id="debugToggle" aria-expanded="false"><span><svg viewBox="0 0 24 24"><path d="M8 9 4 12l4 3M16 9l4 3-4 3M14 5l-4 14"/></svg>ข้อมูลสำหรับทดสอบ Protocol</span><span class="chevron">⌄</span></button>
+        <div class="debug-content" id="debugContent" hidden><div class="debug-actions"><button id="pollButton">อ่านสถานะ</button><button id="exportButton">ดาวน์โหลด log</button><button id="clearButton">ล้าง log</button></div><pre id="debugLog">[system] พร้อมเชื่อมต่อ ANT BMS</pre></div>
+      </section>
+      <footer><span>READ-ONLY · ANT 2021+ PROTOCOL</span><span>HARDWARE VERIFIED</span></footer>
+    </main>
+
+    <nav class="bottom-nav" aria-label="เมนูหลัก">
+      <a href="#overview" class="nav-item active"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v10h-6v-6H9v6H3V11Z"/></svg><span>หน้าหลัก</span></a>
+      <a href="#cells" class="nav-item"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V4M19 19v-7"/></svg><span>เซลล์</span></a>
+      <button class="nav-connect" id="navConnect" aria-label="เลือกอุปกรณ์ Bluetooth"><span class="nav-connect-ring"><svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg></span></button>
+      <a href="#system" class="nav-item"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-5"/></svg><span>ระบบ</span></a>
+      <button class="nav-item" id="navMore"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span>เพิ่มเติม</span></button>
+    </nav>
+
+    <div class="sheet-backdrop" id="deviceSheet" hidden>
+      <section class="device-sheet" role="dialog" aria-modal="true" aria-labelledby="deviceSheetTitle">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head"><div><span class="eyebrow">BLUETOOTH</span><h2 id="deviceSheetTitle">เลือกอุปกรณ์</h2></div><button id="closeSheet" aria-label="ปิด">×</button></div>
+        <p class="sheet-help">อุปกรณ์ที่เคยอนุญาตจะแสดงด้านล่าง สำหรับอุปกรณ์ใหม่ Chrome หรือ Bluefy จะเปิดหน้าต่างค้นหาให้อีกครั้ง</p>
+        <div class="device-list" id="deviceList"><div class="list-loading">กำลังตรวจสอบอุปกรณ์…</div></div>
+        <button class="discover-button" id="discoverButton"><svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 0 7 7M12 1v8l3-3M12 9 9 6"/></svg><span>ค้นหาอุปกรณ์ใหม่</span></button>
+        <p class="compatibility" id="compatibilityText">รองรับ Chrome/Edge และ Bluefy บน iPhone</p>
+      </section>
+    </div>
+    <div class="confirm-backdrop" id="disconnectDialog" hidden>
+      <section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="disconnectTitle" aria-describedby="disconnectDescription">
+        <span class="confirm-icon"><svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg></span>
+        <h2 id="disconnectTitle">ตัดการเชื่อมต่อ Bluetooth?</h2>
+        <p id="disconnectDescription">ข้อมูลแบตเตอรี่จะหยุดอัปเดตจนกว่าจะเชื่อมต่อใหม่</p>
+        <div class="confirm-actions">
+          <button class="confirm-cancel" id="cancelDisconnect">เชื่อมต่อต่อ</button>
+          <button class="confirm-danger" id="confirmDisconnect">ตัดการเชื่อมต่อ</button>
+        </div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>

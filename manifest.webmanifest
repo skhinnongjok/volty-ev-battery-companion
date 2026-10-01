@@ -1,0 +1,10 @@
+{
+  "name": "VOLTY — Your EV battery companion",
+  "short_name": "VOLTY",
+  "description": "Your EV battery companion",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#f4f5f7",
+  "icons": []
+}
