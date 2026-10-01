@@ -39,7 +39,7 @@ npm run dev
 - Raw TX/RX log และ export เป็น JSON เพื่อช่วยตรวจ protocol กับเครื่องจริง
 - Hardware/software version response (หาก firmware ตอบกลับ)
 - Trip Tracking พร้อม GPS distance, elapsed time และ BMS snapshots ระหว่างทาง
-- เริ่ม Trip Tracking อัตโนมัติเมื่อเชื่อมต่อ Bluetooth สำเร็จ และไม่จบทริปเมื่อสัญญาณหลุดชั่วคราว
+- เริ่ม Trip Tracking อัตโนมัติเมื่อเชื่อมต่อ Bluetooth สำเร็จ; หาก Bluetooth หลุด ระบบจะหยุด tracking และบันทึกทริปเป็นไม่สำเร็จพร้อม SOC ล่าสุด
 - Trip Summary แสดง SOC/Ah/พลังงาน/Wh ต่อ km/อุณหภูมิ/cell delta และเก็บประวัติใน IndexedDB บนเครื่อง
 
 ## โครงสร้าง

@@ -143,6 +143,6 @@ export class TripStore {
 
   async getCompleted() {
     const trips = await this.getAll();
-    return trips.filter((trip) => trip.status === "completed").sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+    return trips.filter((trip) => trip.status === "completed" || trip.status === "failed").sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
   }
 }

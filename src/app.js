@@ -48,6 +48,11 @@ function renderActiveTrip() {
   $("tripStatus").textContent = isActive ? "RECORDING" : "READY";
   $("tripHeading").textContent = isActive ? "กำลังบันทึกทริป" : "พร้อมออกเดินทาง";
   $("tripMessage").textContent = isActive ? "GPS และข้อมูล BMS จะถูกเก็บไว้ในเครื่องนี้" : "เชื่อมต่อ Bluetooth แล้วระบบจะเริ่มบันทึกอัตโนมัติ";
+  if (!isActive) {
+    $("startTripButton").disabled = !connected;
+    $("tripStartTitle").textContent = connected ? "Start New Trip" : "รอ Bluetooth";
+    $("tripStartHint").textContent = connected ? "เริ่มทริปใหม่โดยใช้ BMS ที่เชื่อมอยู่" : "เชื่อมต่อ BMS เพื่อเริ่มอัตโนมัติ";
+  }
   if (!isActive) return;
   const elapsed = (Date.now() - Date.parse(activeTrip.startedAt)) / 1000;
   $("tripDistance").innerHTML = `${format(activeTrip.distanceMeters / 1000, 2)} <small>km</small>`;
@@ -96,6 +101,10 @@ function stopTripClock() {
 
 function displayTripSummary(trip) {
   const summary = trip.summary || summarizeTrip(trip, new Date(trip.endedAt || Date.now()));
+  const failed = trip.status === "failed";
+  $("summaryEyebrow").textContent = failed ? "TRIP INCOMPLETE" : "TRIP COMPLETE";
+  $("summaryResult").classList.toggle("failed", failed);
+  $("summaryResultText").textContent = failed ? `บันทึกไม่สำเร็จ · ${trip.failureReason || "ข้อมูลไม่ครบ"}` : "บันทึกทริปสำเร็จ";
   const startedAt = new Date(trip.startedAt);
   const endedAt = new Date(trip.endedAt || Date.now());
   $("summaryDate").textContent = startedAt.toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
@@ -116,7 +125,13 @@ function displayTripSummary(trip) {
     return item;
   }));
   $("tripSummary").hidden = false;
-  $("tripSummary").scrollIntoView({ behavior: "smooth", block: "center" });
+  document.body.classList.add("no-scroll");
+  window.setTimeout(() => $("closeTripSummary").focus(), 0);
+}
+
+function closeTripSummary() {
+  $("tripSummary").hidden = true;
+  document.body.classList.remove("no-scroll");
 }
 
 async function renderTripHistory() {
@@ -131,7 +146,9 @@ async function renderTripHistory() {
       const button = document.createElement("button"); button.className = "history-card";
       const date = new Date(trip.startedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
       const time = new Date(trip.startedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-      button.innerHTML = `<span class="history-card-title"><strong>${date} · ${time}</strong><span>${formatTripDuration(summary.durationSeconds)} · ใช้แบต ${format(summary.socUsed, 0)}%</span></span><span class="history-card-metrics"><strong>${format(summary.distanceKm, 2)} km</strong><span>${format(summary.averageWhPerKm, 1)} Wh/km</span></span>`;
+      const failed = trip.status === "failed";
+      button.classList.toggle("failed", failed);
+      button.innerHTML = `<span class="history-card-title"><strong>${date} · ${time}</strong><span>${formatTripDuration(summary.durationSeconds)} · ใช้แบต ${format(summary.socUsed, 0)}%</span>${failed ? `<em>ไม่สำเร็จ · ${trip.failureReason || "ข้อมูลไม่ครบ"}</em>` : ""}</span><span class="history-card-metrics"><strong>${format(summary.distanceKm, 2)} km</strong><span>${format(summary.averageWhPerKm, 1)} Wh/km</span></span>`;
       button.addEventListener("click", () => displayTripSummary(trip));
       return button;
     }));
@@ -143,6 +160,7 @@ async function renderTripHistory() {
 
 async function startTrip({ automatic = false } = {}) {
   if (activeTrip || tripStartPending) return;
+  if (!connected) { showToast("กรุณาเชื่อมต่อ Bluetooth ก่อนเริ่มทริป", true); return; }
   tripStartPending = true;
   const startedAt = new Date();
   activeTrip = { id: createTripId(), status: "active", startedAutomatically: automatic, startedAt: startedAt.toISOString(), endedAt: null, distanceMeters: 0, positions: [], samples: [] };
@@ -182,12 +200,34 @@ async function endTrip() {
   } finally { $("endTripButton").disabled = false; }
 }
 
+async function failActiveTrip(reason) {
+  if (!activeTrip) return;
+  const endedAt = new Date();
+  if (latestData) activeTrip.samples.push(createBmsSample(latestData, endedAt));
+  const failedTrip = activeTrip;
+  failedTrip.endedAt = endedAt.toISOString();
+  failedTrip.status = "failed";
+  failedTrip.failureReason = reason;
+  failedTrip.summary = summarizeTrip(failedTrip, endedAt);
+  activeTrip = null;
+  stopLocationWatch(); stopTripClock(); renderActiveTrip();
+  try {
+    await tripStore.put(failedTrip);
+    displayTripSummary(failedTrip);
+    await renderTripHistory();
+    showToast(`หยุดทริป: ${reason}`, true);
+  } catch (error) {
+    addLog(`TRIP FAILURE SAVE ERROR ${error.message}`, "error");
+    showToast("Bluetooth หลุดและไม่สามารถบันทึกทริปได้", true);
+  }
+}
+
 async function restoreTripState() {
   await renderTripHistory();
   try {
     activeTrip = await tripStore.getActive();
-    if (activeTrip) { startLocationWatch(); startTripClock(); }
-    renderActiveTrip();
+    if (activeTrip) await failActiveTrip("การเชื่อมต่อ Bluetooth สิ้นสุด");
+    else renderActiveTrip();
   } catch (error) { addLog(`TRIP RESTORE ERROR ${error.message}`, "error"); }
 }
 
@@ -393,6 +433,9 @@ async function connectDevice(device) {
 }
 
 function openDisconnectDialog() {
+  $("disconnectDescription").textContent = activeTrip
+    ? "ทริปที่กำลังบันทึกจะหยุดทันทีและถูกระบุว่าไม่สำเร็จ"
+    : "ข้อมูลแบตเตอรี่จะหยุดอัปเดตจนกว่าจะเชื่อมต่อใหม่";
   $("disconnectDialog").hidden = false;
   document.body.classList.add("no-scroll");
   window.setTimeout(() => $("cancelDisconnect").focus(), 0);
@@ -435,6 +478,7 @@ $("confirmDisconnect").addEventListener("click", () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("disconnectDialog").hidden) closeDisconnectDialog();
+  if (event.key === "Escape" && !$("tripSummary").hidden) closeTripSummary();
 });
 $("discoverButton").addEventListener("click", async () => {
   try {
@@ -458,7 +502,8 @@ $("navMore").addEventListener("click", () => {
 });
 $("startTripButton").addEventListener("click", () => startTrip());
 $("endTripButton").addEventListener("click", endTrip);
-$("closeTripSummary").addEventListener("click", () => { $("tripSummary").hidden = true; });
+$("closeTripSummary").addEventListener("click", closeTripSummary);
+$("tripSummary").addEventListener("click", (event) => { if (event.target === $("tripSummary")) closeTripSummary(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") scheduleTripSave(true); });
 $("exportButton").addEventListener("click", () => {
   const data = JSON.stringify({ exportedAt: new Date().toISOString(), device: client.device?.name, latestData, logs }, null, 2);
@@ -475,7 +520,11 @@ client.addEventListener("connection", ({ detail }) => {
   $("connectButton").querySelector("span").textContent = connected ? "ตัดการเชื่อมต่อ" : "เลือกอุปกรณ์";
   $("pollButton").disabled = !connected;
   $("dataAge").textContent = connected ? "SYNC" : "OFFLINE"; $("dataAge").classList.toggle("live", connected);
-  if (!connected) { document.body.classList.add("data-stale"); resetDashboard(); }
+  if (!connected) {
+    if (activeTrip) failActiveTrip("Bluetooth ถูกตัดการเชื่อมต่อ");
+    document.body.classList.add("data-stale"); resetDashboard();
+  }
+  renderActiveTrip();
   addLog(connected ? `CONNECTED ${detail.name}` : `DISCONNECTED ${detail.name}`);
   if (!connected && !intentionalDisconnect) showToast("Bluetooth ถูกตัดการเชื่อมต่อ", true);
   else if (connected) showToast(`เชื่อมต่อ ${detail.name} แล้ว`);
